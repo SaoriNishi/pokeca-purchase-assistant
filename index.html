@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pokeca Purchase Assistant</title>
+  <meta name="description" content="ポケモンカードの発売情報、在庫、抽選受付を監視し、購入チャンスを通知するローカル支援ツール。">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #20242a;
+      --muted: #5c6675;
+      --line: #d9dde5;
+      --paper: #ffffff;
+      --wash: #f4f6f8;
+      --blue: #2557a7;
+      --blue-dark: #173a72;
+      --yellow: #f6c945;
+      --green: #1f8a5b;
+      --red: #c2414b;
+      --shadow: 0 18px 45px rgba(32, 36, 42, 0.12);
+      font-family: Arial, "Yu Gothic", Meiryo, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--wash);
+      color: var(--ink);
+      line-height: 1.65;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }
+
+    .topbar-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 220px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background:
+        linear-gradient(#d8434f 0 48%, #20242a 48% 54%, #ffffff 54% 100%);
+      border: 2px solid #20242a;
+      box-shadow: inset 0 0 0 4px rgba(255,255,255,0.18);
+      position: relative;
+      flex: 0 0 auto;
+    }
+
+    .mark::after {
+      content: "";
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #20242a;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    nav a {
+      text-decoration: none;
+      padding: 6px 8px;
+      border-radius: 6px;
+    }
+
+    nav a:hover {
+      background: #eef2f7;
+      color: var(--ink);
+    }
+
+    .hero {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 58px 20px 34px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 0.92fr);
+      gap: 34px;
+      align-items: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--paper);
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(34px, 5vw, 60px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 18px;
+      max-width: 680px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 26px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 10px 14px;
+      border-radius: 7px;
+      border: 1px solid var(--blue);
+      background: var(--blue);
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .button.secondary {
+      background: var(--paper);
+      color: var(--blue-dark);
+      border-color: var(--line);
+    }
+
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 14px;
+      background: #eef2f7;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .status {
+      color: var(--green);
+      font-weight: 800;
+    }
+
+    .screen {
+      padding: 14px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 10px;
+      background: #fbfcfe;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1.25;
+    }
+
+    .event-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 82px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      font-size: 13px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-weight: 800;
+      font-size: 12px;
+      color: #fff;
+    }
+
+    .badge.available {
+      background: var(--green);
+    }
+
+    .badge.lottery {
+      background: var(--blue);
+    }
+
+    .badge.watch {
+      background: var(--red);
+    }
+
+    .section {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 34px 20px;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 28px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .section-copy {
+      margin: 0 0 20px;
+      color: var(--muted);
+      max-width: 760px;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .feature,
+    .step,
+    .note {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .feature strong,
+    .step strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 16px;
+    }
+
+    .feature p,
+    .step p,
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .step {
+      min-height: 136px;
+      position: relative;
+    }
+
+    .step em {
+      display: inline-flex;
+      width: 28px;
+      height: 28px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--yellow);
+      color: #20242a;
+      font-style: normal;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .code {
+      background: #20242a;
+      color: #f8fafc;
+      border-radius: 8px;
+      overflow: auto;
+      padding: 16px;
+      border: 1px solid #343a46;
+      font-size: 14px;
+    }
+
+    .code code {
+      white-space: pre;
+    }
+
+    .note {
+      border-left: 5px solid var(--yellow);
+    }
+
+    footer {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 22px 20px 42px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 920px) {
+      .hero {
+        grid-template-columns: 1fr;
+        padding-top: 34px;
+      }
+
+      .feature-grid,
+      .flow {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 620px) {
+      .topbar-inner {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      nav {
+        justify-content: flex-start;
+      }
+
+      .hero,
+      .section {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .feature-grid,
+      .flow,
+      .metrics {
+        grid-template-columns: 1fr;
+      }
+
+      .event {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 36px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"></span>
+        <span>Pokeca Purchase Assistant</span>
+      </div>
+      <nav aria-label="ページ内ナビゲーション">
+        <a href="#features">機能</a>
+        <a href="#flow">流れ</a>
+        <a href="#setup">セットアップ</a>
+        <a href="https://github.com/SaoriNishi/pokeca-purchase-assistant">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <div class="eyebrow"><span class="dot"></span>発売情報・在庫・抽選受付をローカルで監視</div>
+        <h1>ポケモンカードの購入チャンスを見逃さない。</h1>
+        <p class="lead">
+          公式発売情報とショップページを定期チェックし、在庫あり・予約受付中・抽選受付中の可能性を検知したら通知する、手動確認型の購入支援ツールです。
+        </p>
+        <div class="actions">
+          <a class="button" href="https://github.com/SaoriNishi/pokeca-purchase-assistant">GitHubで見る</a>
+          <a class="button secondary" href="#setup">ローカルで動かす</a>
+        </div>
+      </div>
+
+      <div class="panel" aria-label="管理画面イメージ">
+        <div class="panel-head">
+          <span>Local Dashboard</span>
+          <span class="status">Monitoring</span>
+        </div>
+        <div class="screen">
+          <div class="metrics">
+            <div class="metric"><span>Products</span><strong>24</strong></div>
+            <div class="metric"><span>Retailers</span><strong>6</strong></div>
+            <div class="metric"><span>Stock Checks</span><strong>186</strong></div>
+            <div class="metric"><span>Chances</span><strong>3</strong></div>
+          </div>
+          <div class="event-list">
+            <div class="event">
+              <span class="badge lottery">抽選</span>
+              <span>ポケモンセンターオンライン</span>
+              <strong>受付中</strong>
+            </div>
+            <div class="event">
+              <span class="badge available">在庫</span>
+              <span>ショップ検索ページ</span>
+              <strong>検知</strong>
+            </div>
+            <div class="event">
+              <span class="badge watch">監視</span>
+              <span>新弾キーワード</span>
+              <strong>継続</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <h2>できること</h2>
+      <p class="section-copy">
+        GitHub Pagesは紹介ページです。実際の監視・通知・DB保存は、手元のPCやサーバーでPythonアプリを起動して使います。
+      </p>
+      <div class="feature-grid">
+        <div class="feature">
+          <strong>発売情報を取得</strong>
+          <p>公式サイトの発売情報を取り込み、商品名・発売日・URLをSQLiteへ保存します。</p>
+        </div>
+        <div class="feature">
+          <strong>店舗ページを監視</strong>
+          <p>ショップの商品ページや検索ページから、在庫や抽選受付の文言を検知します。</p>
+        </div>
+        <div class="feature">
+          <strong>Discord通知</strong>
+          <p>購入チャンスを検知したらWebhook経由で通知し、商品ページをすぐ開けます。</p>
+        </div>
+        <div class="feature">
+          <strong>手動確認で安全運用</strong>
+          <p>購入確定はユーザーが確認します。CAPTCHA回避や規約回避は対象外です。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="flow" class="section">
+      <h2>監視フロー</h2>
+      <div class="flow">
+        <div class="step"><em>1</em><strong>発売情報</strong><p>公式・補助サイトから新商品の情報を取り込みます。</p></div>
+        <div class="step"><em>2</em><strong>DB保存</strong><p>商品、店舗、監視結果、通知履歴をローカルDBへ保存します。</p></div>
+        <div class="step"><em>3</em><strong>在庫確認</strong><p>設定した店舗URLを一定間隔でチェックします。</p></div>
+        <div class="step"><em>4</em><strong>通知</strong><p>購入・抽選の可能性があればDiscordへ通知します。</p></div>
+        <div class="step"><em>5</em><strong>購入確認</strong><p>最後はブラウザで内容を確認して購入します。</p></div>
+      </div>
+    </section>
+
+    <section id="setup" class="section">
+      <h2>ローカル起動</h2>
+      <p class="section-copy">
+        リポジトリをダウンロードしたあと、`config.example.json` を `config.json` にコピーしてDiscord Webhookや監視店舗を設定します。
+      </p>
+      <pre class="code"><code>Copy-Item config.example.json config.json
+python app.py init
+python app.py serve
+
+# 管理画面
+http://127.0.0.1:8765
+
+# 継続監視
+python app.py watch</code></pre>
+    </section>
+
+    <section class="section">
+      <div class="note">
+        <strong>運用ポリシー</strong>
+        <p>
+          このツールは、発売情報の整理、在庫・抽選ページの監視、通知、購入ページへの誘導を目的にしています。店舗の購入制限回避、CAPTCHA回避、複数アカウント運用、規約に反する自動購入は対象外です。
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Pokeca Purchase Assistant is a local monitoring tool. This project is not affiliated with Nintendo, Creatures, GAME FREAK, or The Pokemon Company.
+  </footer>
+</body>
+</html>
