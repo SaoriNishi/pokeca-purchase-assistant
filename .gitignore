@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+pokeca.db
+pokeca.db-*
+config.json
+server.*.log
